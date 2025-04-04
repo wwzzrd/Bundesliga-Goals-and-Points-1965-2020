@@ -1,0 +1,156 @@
+---
+title: "Bundesliga Goals and Points by Teams 1965-2020"
+description: A quick overview of goals and points scored by the top 25 teams in the Bundesliga between 1965 and 2020.
+author:
+  - name: Eduard Schlenz
+    url: https://github.com/wwzzrd
+    source: https://github.com/thomascamminady 
+date: "`r Sys.Date()`"
+output: distill::distill_article
+---
+
+# Introduction
+This analysis explores the performance of the top 25 Bundesliga teams from 1965 to 2020, visualizing their cumulative goals and points over time. The goal is to understand how these teams have performed season by season in terms of both goals and points.
+
+```{r, message = FALSE}
+library(jsonlite)
+library(lubridate)
+library(tidyverse)
+library(gganimate)
+library(geomtextpath)
+library(ggplot2)
+library(viridis)
+library(gifski)
+library(gapminder)
+library(knitr)
+```
+
+# Read Data
+We begin by reading the dataset that contains information on all Bundesliga games ever played. The data includes season, teams, match dates, and scores. We will process this data to extract relevant information on goals and points.
+
+```{r, layout="l-page-outset"}
+bundesliga <- read.csv2("https://raw.githubusercontent.com/thomascamminady/AllBundesligaGamesEver/master/AllBundesligaGamesEver.csv", 
+                        header = TRUE, 
+                        skip = 0)
+kable(head(bundesliga))
+```
+
+# Data preperation: Top 25 Teams by Goals
+In this section, we calculate the total number of goals scored by each team in every season. After that, we compute the cumulative goals for each team across the seasons. Finally, we filter out the top 25 teams based on the total number of goals scored.
+
+```{r}
+bundesliga_home <- bundesliga %>%
+  select(SeasonFrom,SeasonTo,Date, Home,Score90Home) %>%
+  rename(Team = Home, Goals = Score90Home)
+
+
+bundesliga_guest <- bundesliga %>%
+  select(SeasonFrom,SeasonTo,Date, Guest,Score90Guest) %>%
+  rename(Team = Guest, Goals = Score90Guest)
+
+
+bundesliga_team_goals <- bind_rows(bundesliga_home, bundesliga_guest)
+
+# Group by Season and Team, and calculate total goals per team
+bundesliga_team_goals <- bundesliga_team_goals %>%
+  group_by(SeasonFrom, Team) %>%
+  summarise(Goals = sum(Goals), .groups = "keep") 
+
+# Calculate cumulative goals for each team
+bundesliga_team_goals <- bundesliga_team_goals %>%
+  group_by(Team) %>%
+  mutate(cum_goals = cumsum(Goals))
+
+# Get top 25 teams by total goals
+top_25 <- bundesliga_team_goals %>%
+  group_by(Team) %>%
+  summarize(Goals = sum(Goals)) %>%
+  arrange(-Goals) %>%
+  top_n(25, Goals)
+
+# Filter data for the top 25 teams
+top_25_bundesliga_team_goals <- bundesliga_team_goals %>%
+  semi_join(top_25, by ="Team")
+
+kable(head(top_25_bundesliga_team_goals))
+```
+
+# Graph: Bundesliga Cumulative Goals
+In this section, we visualize the cumulative goals scored by the top 25 Bundesliga teams over time. The graph shows how each teams performance has evolved across seasons.
+
+```{r, fig.width=10, fig.height=6}
+
+
+a = ggplot(top_25_bundesliga_team_goals, aes(x=SeasonFrom, y=cum_goals, color=Team)) +
+    geom_line(linewidth = 1.2, na.rm = TRUE) +
+    scale_x_continuous(
+        breaks = seq(1965, 2020, by = 5), 
+        limits = c(1965, 2020) ) + 
+    theme_minimal() +
+    labs(x = "Season", y = "Cumulative Bundesliga Goals", color = "Teams")
+
+a
+```
+
+# Data Preparation: Top 25 Teams by Points
+
+Now, we perform similar steps to calculate the cumulative points for each team. We start by extracting the points each team earned per season, then compute the cumulative points across seasons. Finally, we filter out the top 25 teams based on total points.
+
+```{r}
+points_home <- bundesliga %>%
+  select(SeasonFrom,SeasonTo,Date, Home, PointsGuest) %>%
+  rename(Team = Home, Points = PointsGuest)
+
+points_guest <- bundesliga %>%
+  select(SeasonFrom,SeasonTo,Date, Guest, PointsHome) %>%
+  rename(Team = Guest, Points = PointsHome)
+
+team_points <- bind_rows(points_home, points_guest)
+
+# Group by Season and Team, and calculate total points per team
+team_points <- team_points %>%
+  group_by(SeasonFrom, Team) %>%
+  summarise(Points = sum(Points), .groups = "keep") 
+
+# Calculate cumulative points for each team
+team_points <- team_points %>%
+  group_by(Team) %>%
+  mutate(cum_points = cumsum(Points))
+
+# Get top 25 teams by total points
+top_25_points <- team_points %>%
+  group_by(Team) %>%
+  summarize(Points = sum(Points)) %>%
+  arrange(-Points) %>%
+  top_n(25, Points)
+
+# Filter data for the top 25 teams
+top_25_bundesliga_points <- team_points %>%
+  semi_join(top_25_points, by ="Team")
+
+kable(head(top_25_bundesliga_points))
+```
+
+# Graph: Bundesliga Cumulative Points
+This graph visualizes the cumulative points earned by the top 25 Bundesliga teams over time, offering insights into the teams overall performance across the seasons.
+
+```{r, fig.width=10, fig.height=6}
+b = ggplot(top_25_bundesliga_points, aes(x=SeasonFrom, y=cum_points, color=Team)) +
+    geom_line(
+      linewidth = 1.2,
+      na.rm = TRUE) +
+    scale_x_continuous(
+        breaks = seq(1965, 2020, by = 5), 
+        limits = c(1965, 2020) ) + 
+    theme_minimal() +
+    labs(x = "Season", y = "Cumulative Bundesliga Points", color = "Teams")
+
+b
+```
+
+# Conclusion
+From the graphs, we can observe the performance trends of the top 25 Bundesliga teams over the years. Some teams have consistently accumulated goals and points, while others show fluctuations in their performance. Most notable outlier is Bayern München, whose dominance is clearly reflected in their steadily rising cumulative goals and points, far surpassing other teams across multiple decades.
+
+# Sources
+Bundesliga dataset: https://github.com/thomascamminady
+
